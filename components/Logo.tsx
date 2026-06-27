@@ -40,7 +40,7 @@ function Triangle({ size }: { size: number }) {
       width={size}
       height={size}
       viewBox="0 0 24 24"
-      fill="#000000"
+      fill="var(--color-ink)"
       aria-hidden
     >
       <path d="M12 2 23 21H1L12 2Z" />

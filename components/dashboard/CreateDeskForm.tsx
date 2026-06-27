@@ -31,7 +31,7 @@ export function CreateDeskForm({ onCreated }: Props) {
   const [headline, setHeadline] = useState("");
   const [context, setContext] = useState("");
   const [bookingEnabled, setBookingEnabled] = useState(true);
-  const [accent, setAccent] = useState(ACCENTS[0]);
+  const [accent, setAccent] = useState("#0070f3");
   const [advanced, setAdvanced] = useState(false);
   const [expiresIn, setExpiresIn] = useState<DeskShareDTO["expiresIn"]>("7d");
   const [access, setAccess] = useState<DeskShareDTO["access"]>("read_calendar_write");
@@ -72,7 +72,7 @@ export function CreateDeskForm({ onCreated }: Props) {
       setHeadline("");
       setContext("");
       setBookingEnabled(true);
-      setAccent(ACCENTS[0]);
+      setAccent("#0070f3");
     } catch {
       setError("Network error — please try again.");
     } finally {
