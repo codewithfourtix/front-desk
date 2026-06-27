@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { Logo } from "@/components/Logo";
 import { ModeBadge } from "@/components/ModeBadge";
+import { ThemeToggle } from "@/components/ThemeToggle";
 
 export default function Home() {
   return (
@@ -21,8 +22,9 @@ function Nav() {
     <header className="sticky top-0 z-30 border-b border-line bg-paper/85 backdrop-blur">
       <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-3 sm:px-6">
         <Logo href="/" />
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2 sm:gap-3">
           <ModeBadge className="hidden sm:inline-flex" />
+          <ThemeToggle />
           <Link href="/dashboard" className="btn btn-clay px-4 py-2 text-sm">
             Open your desk
           </Link>
@@ -76,7 +78,7 @@ function DeskPreview() {
     <div className="card overflow-hidden rise" style={{ boxShadow: "0 8px 30px rgba(0,0,0,.08)" }}>
       <div className="h-1.5 w-full" style={{ background: "var(--color-clay)" }} />
       <div className="flex items-center gap-3 border-b border-line p-4">
-        <span className="flex h-10 w-10 items-center justify-center rounded-full text-sm font-semibold text-white" style={{ background: "var(--color-clay)" }}>
+        <span className="flex h-10 w-10 items-center justify-center rounded-full text-sm font-semibold text-white" style={{ background: "#0070f3" }}>
           A
         </span>
         <div>

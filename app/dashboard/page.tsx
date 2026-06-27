@@ -5,6 +5,7 @@ import { DashboardClient } from "@/components/dashboard/DashboardClient";
 import type { DeskDTO } from "@/components/dashboard/types";
 import { Logo } from "@/components/Logo";
 import { ModeBadge } from "@/components/ModeBadge";
+import { ThemeToggle } from "@/components/ThemeToggle";
 
 export const metadata: Metadata = {
   title: "Dashboard",
@@ -22,8 +23,9 @@ export default async function DashboardPage() {
       <header className="sticky top-0 z-30 border-b border-line bg-paper/85 backdrop-blur">
         <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-3 sm:px-6">
           <Logo href="/" />
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2 sm:gap-3">
             <ModeBadge />
+            <ThemeToggle />
             <Link href="/" className="btn btn-ghost px-3 py-1.5 text-sm">
               Home
             </Link>
