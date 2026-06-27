@@ -159,6 +159,8 @@ export function Chat({
             appendText(agentId, evt.text as string);
             break;
           case "done":
+            // `booked` is true only when a calendar tool actually succeeded.
+            if (evt.booked) booking = true;
             patch(agentId, {
               streaming: false,
               tools: [...tools],
@@ -173,15 +175,6 @@ export function Chat({
               streaming: false,
             });
             break;
-        }
-        // Infer a booking from the calendar-write tools.
-        if (
-          evt.kind === "tool" &&
-          ["schedule_meeting", "create_calendar_event"].includes(
-            evt.tool as string
-          )
-        ) {
-          booking = true;
         }
       }
     } catch {

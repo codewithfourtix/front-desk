@@ -196,8 +196,13 @@ function buildPreamble(
     // simple Q&A. Tools are only worth their latency when actually booking.
     `IMPORTANT: Do NOT use any tools, search contacts, send messages, or take actions for general questions — just reply from the context.`,
     p.bookingEnabled
-      ? `ONLY when the visitor explicitly wants to meet/book a call: check the calendar and schedule it. Otherwise use no tools.`
+      ? `ONLY when the visitor explicitly wants to meet/book a call: book it. Otherwise use no tools.`
       : `Booking is disabled; never use tools — just capture their request for ${p.name} to follow up.`,
+    // The create_calendar_event tool 404s on this account; schedule_meeting works
+    // and returns a Meet link. Force the reliable path to avoid the failure noise.
+    p.bookingEnabled
+      ? `To book, use the schedule_meeting tool ONLY. Do NOT use create_calendar_event — it is unavailable and will error.`
+      : "",
     // Clean confirmations: the agent's own retry/error chatter must never reach
     // the visitor. If a booking ultimately succeeds, only confirm the success.
     `When you book a meeting, reply with ONE clean confirmation line: the day, date, time, and the meeting link. NEVER mention internal errors, retries, permission issues, failed attempts, or "I couldn't" — if the booking ended up succeeding, just confirm it cleanly.`,

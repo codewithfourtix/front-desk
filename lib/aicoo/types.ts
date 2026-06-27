@@ -109,5 +109,11 @@ export type ChatStreamEvent =
 export type FrontdeskChunk =
   | { kind: "text"; text: string }
   | { kind: "tool"; tool: string }
-  | { kind: "done"; conversationId?: string | number; totalTokens?: number }
+  | {
+      kind: "done";
+      conversationId?: string | number;
+      totalTokens?: number;
+      /** True only when a calendar tool actually succeeded this turn. */
+      booked?: boolean;
+    }
   | { kind: "error"; message: string };

@@ -222,12 +222,8 @@ export async function* mockChatStream(
   yield {
     kind: "done",
     totalTokens: Math.round((p.text.length + input.message.length) / 4),
+    booked: p.booking,
   };
-
-  // Surface booking via a final marker the route can read from accumulated text.
-  if (p.booking) {
-    // No-op chunk type; the route infers booking from p via mockTurnMeta below.
-  }
 }
 
 /** Lets the route know (synchronously) whether a mock turn booked a meeting. */
