@@ -1,0 +1,198 @@
+@import "tailwindcss";
+
+/*
+  Frontdesk — design system
+  Editorial, concierge-desk warmth. Paper + ink + a single clay accent.
+  No gradients-for-the-sake-of-it, no glassmorphism. Hand-tuned.
+*/
+
+@theme {
+  --color-paper: #f7f4ed;
+  --color-paper-2: #f1ece1;
+  --color-card: #fffdf8;
+  --color-ink: #17130f;
+  --color-ink-2: #3b342c;
+  --color-muted: #756c5e;
+  --color-line: #e4ddd0;
+  --color-line-2: #d6cdbc;
+  --color-clay: #c4502a;
+  --color-clay-soft: #e8d6cd;
+  --color-pine: #1f5d45;
+  --color-good: #2f7d54;
+  --color-warn: #b4791b;
+
+  --font-display: var(--font-fraunces);
+  --font-sans: var(--font-inter);
+  --font-mono: var(--font-mono-jb);
+
+  --radius-xs: 6px;
+  --radius-sm: 10px;
+  --radius-md: 14px;
+  --radius-lg: 20px;
+}
+
+:root {
+  --background: var(--color-paper);
+  --foreground: var(--color-ink);
+}
+
+* {
+  border-color: var(--color-line);
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  background: var(--color-paper);
+  color: var(--color-ink);
+  font-family: var(--font-sans), system-ui, sans-serif;
+  font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+/* Subtle paper grain so flat color doesn't read as "default" */
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  opacity: 0.025;
+  background-image: radial-gradient(var(--color-ink) 0.5px, transparent 0.5px);
+  background-size: 4px 4px;
+}
+
+.font-display {
+  font-family: var(--font-display), Georgia, serif;
+  font-optical-sizing: auto;
+}
+
+.font-mono {
+  font-family: var(--font-mono), ui-monospace, monospace;
+}
+
+/* Reusable bits ------------------------------------------------------ */
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  border-radius: var(--radius-sm);
+  font-weight: 500;
+  font-size: 0.925rem;
+  padding: 0.625rem 1.1rem;
+  transition: transform 0.12s ease, background 0.16s ease, border-color 0.16s ease, box-shadow 0.16s ease;
+  cursor: pointer;
+  border: 1px solid transparent;
+  line-height: 1;
+}
+.btn:active { transform: translateY(1px); }
+
+.btn-primary {
+  background: var(--color-ink);
+  color: var(--color-paper);
+}
+.btn-primary:hover { background: #000; }
+
+.btn-clay {
+  background: var(--color-clay);
+  color: #fff;
+  box-shadow: 0 1px 0 rgba(0, 0, 0, 0.04);
+}
+.btn-clay:hover { background: #ad4422; }
+
+.btn-ghost {
+  background: transparent;
+  color: var(--color-ink);
+  border-color: var(--color-line-2);
+}
+.btn-ghost:hover { background: var(--color-paper-2); }
+
+.card {
+  background: var(--color-card);
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-md);
+}
+
+.input {
+  background: var(--color-card);
+  border: 1px solid var(--color-line-2);
+  border-radius: var(--radius-sm);
+  padding: 0.625rem 0.85rem;
+  font-size: 0.95rem;
+  color: var(--color-ink);
+  width: 100%;
+  transition: border-color 0.14s ease, box-shadow 0.14s ease;
+}
+.input:focus {
+  outline: none;
+  border-color: var(--color-clay);
+  box-shadow: 0 0 0 3px var(--color-clay-soft);
+}
+
+.label {
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--color-muted);
+}
+
+.tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  padding: 0.2rem 0.55rem;
+  border-radius: 999px;
+  border: 1px solid var(--color-line-2);
+  background: var(--color-paper-2);
+  color: var(--color-ink-2);
+}
+
+.hairline {
+  border: none;
+  border-top: 1px solid var(--color-line);
+}
+
+/* Chat typing dots */
+.dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 999px;
+  background: var(--color-muted);
+  animation: blink 1.2s infinite ease-in-out both;
+}
+.dot:nth-child(2) { animation-delay: 0.2s; }
+.dot:nth-child(3) { animation-delay: 0.4s; }
+@keyframes blink {
+  0%, 80%, 100% { opacity: 0.25; transform: translateY(0); }
+  40% { opacity: 1; transform: translateY(-2px); }
+}
+
+@keyframes rise {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.rise { animation: rise 0.32s ease both; }
+
+::selection {
+  background: var(--color-clay);
+  color: #fff;
+}
+
+/* Thin, paper-toned scrollbars */
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb {
+  background: var(--color-line-2);
+  border-radius: 999px;
+  border: 2px solid var(--color-paper);
+}
+::-webkit-scrollbar-thumb:hover { background: var(--color-muted); }
