@@ -219,16 +219,17 @@ export function Chat({
           <Bubble key={m.id} m={m} firstName={firstName} />
         ))}
 
-        {activeTools.length > 0 && (
-          <div className="flex items-center gap-2 pl-11 text-sm text-muted rise">
-            <span className="flex gap-1">
-              <span className="dot" />
-              <span className="dot" />
-              <span className="dot" />
-            </span>
-            <span>{toolLabel(activeTools[activeTools.length - 1])}…</span>
-          </div>
-        )}
+        {activeTools.length > 0 &&
+          !messages.some((m) => m.bookingMode && m.streaming) && (
+            <div className="flex items-center gap-2 pl-11 text-sm text-muted rise">
+              <span className="flex gap-1">
+                <span className="dot" />
+                <span className="dot" />
+                <span className="dot" />
+              </span>
+              <span>{toolLabel(activeTools[activeTools.length - 1])}…</span>
+            </div>
+          )}
       </div>
 
       {/* Starter chips (only before the visitor has said anything) */}
