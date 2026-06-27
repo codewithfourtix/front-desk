@@ -174,14 +174,43 @@ export async function* chatStream(
   if (input.temperature !== undefined) body.temperature = input.temperature;
   if (input.attachmentIds?.length) body.attachmentIds = input.attachmentIds;
 
-  const res = await fetch(`${config.aicooBase}/chat`, {
-    method: "POST",
-    headers: authHeaders(),
-    body: JSON.stringify(body),
-    cache: "no-store",
-  });
+  // The live agent's own loop can run for minutes. Cap the whole turn so a
+  // stuck call fails gracefully instead of hanging the desk forever. The timer
+  // is reset on activity below, so a slow-but-progressing stream isn't killed.
+  const ac = new AbortController();
+  const IDLE_MS = 75_000;
+  let idleTimer: ReturnType<typeof setTimeout> = setTimeout(
+    () => ac.abort(),
+    IDLE_MS
+  );
+  const bump = () => {
+    clearTimeout(idleTimer);
+    idleTimer = setTimeout(() => ac.abort(), IDLE_MS);
+  };
+
+  let res: Response;
+  try {
+    res = await fetch(`${config.aicooBase}/chat`, {
+      method: "POST",
+      headers: authHeaders(),
+      body: JSON.stringify(body),
+      cache: "no-store",
+      signal: ac.signal,
+    });
+  } catch (err) {
+    clearTimeout(idleTimer);
+    const aborted = err instanceof Error && err.name === "AbortError";
+    yield {
+      kind: "error",
+      message: aborted
+        ? "The desk took too long to respond. Please try again."
+        : "Couldn't reach the desk. Please try again.",
+    };
+    return;
+  }
 
   if (!res.ok || !res.body) {
+    clearTimeout(idleTimer);
     let detail = res.statusText;
     try {
       detail = (await res.json())?.message || detail;
@@ -199,6 +228,7 @@ export async function* chatStream(
   let conversationId: string | number | undefined;
   let totalTokens: number | undefined;
   let sawCompletion = false;
+  let gotText = false;
 
   const processLine = function* (
     line: string
@@ -217,7 +247,10 @@ export async function* chatStream(
         // The real agent interleaves <think>…</think> reasoning in the text
         // stream — strip it so visitors only ever see the final answer.
         const visible = think.push(String(evt.textDelta ?? ""));
-        if (visible) yield { kind: "text", text: visible };
+        if (visible) {
+          gotText = true;
+          yield { kind: "text", text: visible };
+        }
         break;
       }
       case "tool-call-start":
@@ -241,26 +274,42 @@ export async function* chatStream(
     }
   };
 
-  while (true) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    buffer += decoder.decode(value, { stream: true });
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      bump(); // activity → reset the idle timeout
+      buffer += decoder.decode(value, { stream: true });
 
-    let nl: number;
-    while ((nl = buffer.indexOf("\n")) !== -1) {
-      const line = buffer.slice(0, nl).trim();
-      buffer = buffer.slice(nl + 1);
-      if (line) yield* processLine(line);
+      let nl: number;
+      while ((nl = buffer.indexOf("\n")) !== -1) {
+        const line = buffer.slice(0, nl).trim();
+        buffer = buffer.slice(nl + 1);
+        if (line) yield* processLine(line);
+      }
     }
+    const tail = buffer.trim();
+    if (tail) yield* processLine(tail);
+
+    // Flush any remaining visible text once the stream is complete.
+    const rest = think.flush();
+    if (rest) yield { kind: "text", text: rest };
+
+    yield { kind: "done", conversationId, totalTokens };
+  } catch {
+    // Timed out or the connection dropped mid-stream. Salvage partial text so
+    // the visitor keeps whatever the agent already said.
+    const rest = think.flush();
+    if (rest) yield { kind: "text", text: rest };
+    if (gotText) yield { kind: "done", conversationId, totalTokens };
+    else
+      yield {
+        kind: "error",
+        message: "The desk took too long to respond. Please try again.",
+      };
+  } finally {
+    clearTimeout(idleTimer);
   }
-  const tail = buffer.trim();
-  if (tail) yield* processLine(tail);
-
-  // Flush any remaining visible text once the stream is complete.
-  const rest = think.flush();
-  if (rest) yield { kind: "text", text: rest };
-
-  yield { kind: "done", conversationId, totalTokens };
   void sawCompletion;
 }
 
