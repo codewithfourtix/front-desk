@@ -36,13 +36,21 @@ export function computeExpiryISO(expiresIn: ShareExpiry): string {
 
 // ── Share links ──────────────────────────────────────────────────────────────
 
+/** Validate a host-supplied Aicoo key (BYOK) before we store/use it. */
+export async function validateAicooKey(apiKey: string): Promise<boolean> {
+  return live.validateKey(apiKey);
+}
+
 /** Create the backing Aicoo share link (or a synthetic one in mock mode). */
 export async function createShareLink(
-  input: CreateShareInput
+  input: CreateShareInput,
+  apiKey?: string
 ): Promise<ShareLink> {
-  if (liveMode()) {
+  // A host-supplied key means we can always talk to Aicoo for this desk, even if
+  // the server itself is in mock mode.
+  if (liveMode() || apiKey) {
     try {
-      return await live.createShare(input);
+      return await live.createShare(input, apiKey);
     } catch (err) {
       // Don't let a flaky network kill a demo — degrade to synthetic.
       console.error("[aicoo] createShare failed, using synthetic link:", err);
@@ -58,10 +66,13 @@ export async function createShareLink(
   };
 }
 
-export async function revokeShareLink(linkId: string): Promise<void> {
-  if (liveMode() && !linkId.startsWith("mock_")) {
+export async function revokeShareLink(
+  linkId: string,
+  apiKey?: string
+): Promise<void> {
+  if ((liveMode() || apiKey) && !linkId.startsWith("mock_")) {
     try {
-      await live.revokeShare(linkId);
+      await live.revokeShare(linkId, apiKey);
     } catch (err) {
       console.error("[aicoo] revokeShare failed:", err);
     }
@@ -83,11 +94,13 @@ export async function liveShareList(): Promise<Map<string, ShareListItem>> {
 
 /** Best-effort: sync a desk's context into Aicoo so the live agent can use it. */
 export async function syncDeskContext(desk: Desk): Promise<void> {
-  if (!liveMode()) return;
+  if (!liveMode() && !desk.aicooKey) return;
   try {
     await live.accumulateNote(
       `Frontdesk · ${desk.profile.name}`,
-      buildContextNote(desk.profile)
+      buildContextNote(desk.profile),
+      "Frontdesk",
+      desk.aicooKey
     );
   } catch (err) {
     console.error("[aicoo] context sync failed:", err);
@@ -102,6 +115,8 @@ export interface DeskTurn {
   history: { role: "visitor" | "agent"; text: string }[];
   timezone?: string;
   conversationId?: string | number;
+  /** Host's own Aicoo key (BYOK). Falls back to the global key when absent. */
+  apiKey?: string;
 }
 
 /** Stream one front-desk turn as normalized chunks, routing for speed.
@@ -129,13 +144,15 @@ export async function* deskChatStream(
     return;
   }
 
-  // Booking turns (or no OpenRouter) go to Aicoo's real agent...
-  if (liveMode()) {
+  // Booking turns (or no OpenRouter) go to Aicoo's real agent. A desk with its
+  // own key can reach Aicoo even when the server is otherwise in mock mode.
+  if (liveMode() || turn.apiKey) {
     yield* live.chatStream({
       message: turn.message,
       conversationId: turn.conversationId,
       userTimezone: turn.timezone,
       systemPreamble: buildPreamble(turn.profile, turn.history),
+      apiKey: turn.apiKey,
     });
     return;
   }

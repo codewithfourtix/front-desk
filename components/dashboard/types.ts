@@ -39,6 +39,8 @@ export interface DeskDTO {
   revoked?: boolean;
   analytics: AnalyticsDTO;
   bookings: number;
+  /** Runs on the host's own Aicoo key (their calendar) vs. the shared default. */
+  byok: boolean;
   live: boolean;
 }
 

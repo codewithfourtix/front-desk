@@ -27,6 +27,14 @@ Heed `AGENTS.md` above — this Next is newer than training data; check
 (`AICOO_API_KEY` set + `FRONTDESK_MOCK=0`). Live calendar/email needs OAuth done in
 the Aicoo web app first.
 
+**BYOK (per-desk key):** a host can paste their own `aicoo_sk_…` when creating a
+desk. It's validated against Aicoo `/init`, stored on the `Desk` record
+(server-only), and used for that desk's share link + chat + bookings, so bookings
+land on *their* calendar. Falls back to the global key when absent. The key is
+NEVER serialized to the client — all client-facing desk objects are built through
+`desk-service.toView`, which strips `aicooKey` (`DeskView` exposes only `byok:
+boolean`). When threading any new field onto `Desk`, re-check that path.
+
 **Conventions:** commit per logical unit, feature branches merged `--no-ff` to
 `main`, push directly to `main` (no PRs needed). **No Claude co-author trailer in
 commit messages.** Design is hand-built editorial (paper/ink/clay) — keep it

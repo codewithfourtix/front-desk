@@ -32,6 +32,7 @@ export function CreateDeskForm({ onCreated }: Props) {
   const [context, setContext] = useState("");
   const [bookingEnabled, setBookingEnabled] = useState(true);
   const [accent, setAccent] = useState("#0070f3");
+  const [aicooKey, setAicooKey] = useState("");
   const [advanced, setAdvanced] = useState(false);
   const [expiresIn, setExpiresIn] = useState<DeskShareDTO["expiresIn"]>("7d");
   const [access, setAccess] = useState<DeskShareDTO["access"]>("read_calendar_write");
@@ -58,6 +59,7 @@ export function CreateDeskForm({ onCreated }: Props) {
         body: JSON.stringify({
           profile: { name, role, headline, context, bookingEnabled, accent },
           share: { expiresIn, access: bookingEnabled ? access : "read" },
+          aicooKey: aicooKey.trim() || undefined,
         }),
       });
       const data = await res.json();
@@ -73,6 +75,7 @@ export function CreateDeskForm({ onCreated }: Props) {
       setContext("");
       setBookingEnabled(true);
       setAccent("#0070f3");
+      setAicooKey("");
     } catch {
       setError("Network error — please try again.");
     } finally {
@@ -145,6 +148,26 @@ export function CreateDeskForm({ onCreated }: Props) {
             </div>
           </div>
         </div>
+
+        {/* BYOK — run this desk on the host's own Aicoo account/calendar */}
+        <Field
+          label="Your Aicoo API key (optional)"
+          hint={
+            bookingEnabled
+              ? "Bookings land on YOUR Google Calendar. Get it from aicoo.io → API keys, and connect your calendar there once. Leave blank to use the shared demo account."
+              : "Runs this desk on your own Aicoo account. Leave blank to use the shared demo account."
+          }
+        >
+          <input
+            className="input font-mono text-sm"
+            type="password"
+            autoComplete="off"
+            value={aicooKey}
+            onChange={(e) => setAicooKey(e.target.value)}
+            placeholder="aicoo_sk_live_…"
+            spellCheck={false}
+          />
+        </Field>
 
         {/* Advanced scope controls */}
         <div>

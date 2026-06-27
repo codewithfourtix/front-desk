@@ -68,6 +68,13 @@ export interface Desk {
   expiry: string;
   createdAt: string;
   revoked?: boolean;
+  /**
+   * The host's own Aicoo API key (BYOK). When set, this desk's chat + bookings
+   * run on the host's Aicoo account/calendar; when absent we fall back to the
+   * server's global key. SERVER-ONLY — must never be serialized to the client
+   * (see desk-service `toView`, which strips it).
+   */
+  aicooKey?: string;
 }
 
 export type MessageRole = "visitor" | "agent";
@@ -198,6 +205,7 @@ export async function createDesk(input: {
   profile: DeskProfile;
   share: DeskShareConfig;
   expiry: string;
+  aicooKey?: string;
 }): Promise<Desk> {
   return withLock(async () => {
     const db = await readDB();
@@ -210,6 +218,7 @@ export async function createDesk(input: {
       share: input.share,
       expiry: input.expiry,
       createdAt: new Date().toISOString(),
+      aicooKey: input.aicooKey,
     };
     db.desks.unshift(desk);
     await writeDB(db);

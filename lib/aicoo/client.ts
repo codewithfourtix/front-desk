@@ -26,20 +26,25 @@ class AicooError extends Error {
   }
 }
 
-function authHeaders(): HeadersInit {
+/**
+ * Auth headers for an Aicoo call. Pass a per-desk key (BYOK) to act on that
+ * host's account; omit it to use the server's global key.
+ */
+function authHeaders(apiKey?: string): HeadersInit {
   return {
-    Authorization: `Bearer ${config.aicooKey}`,
+    Authorization: `Bearer ${apiKey || config.aicooKey}`,
     "Content-Type": "application/json",
   };
 }
 
 async function request<T>(
   path: string,
-  init: RequestInit & { method: string }
+  init: RequestInit & { method: string },
+  apiKey?: string
 ): Promise<T> {
   const res = await fetch(`${config.aicooBase}${path}`, {
     ...init,
-    headers: { ...authHeaders(), ...(init.headers || {}) },
+    headers: { ...authHeaders(apiKey), ...(init.headers || {}) },
     // Never cache mutations or account-scoped reads.
     cache: "no-store",
   });
@@ -63,19 +68,41 @@ async function request<T>(
 // ── Bootstrap ────────────────────────────────────────────────────────────────
 
 /** Idempotently ensure the workspace exists. Safe to call repeatedly. */
-export async function init(): Promise<void> {
-  await request<unknown>("/init", { method: "POST", body: "{}" });
+export async function init(apiKey?: string): Promise<void> {
+  await request<unknown>("/init", { method: "POST", body: "{}" }, apiKey);
+}
+
+/**
+ * Cheaply check whether an Aicoo API key is usable. Returns false ONLY on a
+ * definitive auth rejection (401/403); transient/server errors return true so a
+ * blip on Aicoo's side never blocks a host from creating a desk.
+ */
+export async function validateKey(apiKey: string): Promise<boolean> {
+  try {
+    const res = await fetch(`${config.aicooBase}/init`, {
+      method: "POST",
+      headers: authHeaders(apiKey),
+      body: "{}",
+      cache: "no-store",
+    });
+    if (res.status === 401 || res.status === 403) return false;
+    return true;
+  } catch {
+    return true;
+  }
 }
 
 // ── Share links ──────────────────────────────────────────────────────────────
 
 export async function createShare(
-  input: CreateShareInput
+  input: CreateShareInput,
+  apiKey?: string
 ): Promise<ShareLink> {
-  const raw = await request<Record<string, unknown>>("/share/create", {
-    method: "POST",
-    body: JSON.stringify(input),
-  });
+  const raw = await request<Record<string, unknown>>(
+    "/share/create",
+    { method: "POST", body: JSON.stringify(input) },
+    apiKey
+  );
   // Per spec the link is under `shareLink`; id=`id`, expiry=`expiresAt`.
   const link =
     (raw.shareLink as Record<string, unknown>) ??
@@ -128,10 +155,15 @@ export async function listShares(opts?: {
   });
 }
 
-export async function revokeShare(linkId: string): Promise<void> {
-  await request<unknown>(`/share/${encodeURIComponent(linkId)}`, {
-    method: "DELETE",
-  });
+export async function revokeShare(
+  linkId: string,
+  apiKey?: string
+): Promise<void> {
+  await request<unknown>(
+    `/share/${encodeURIComponent(linkId)}`,
+    { method: "DELETE" },
+    apiKey
+  );
 }
 
 // ── Context ──────────────────────────────────────────────────────────────────
@@ -140,12 +172,17 @@ export async function revokeShare(linkId: string): Promise<void> {
 export async function accumulateNote(
   title: string,
   content: string,
-  folder = "Frontdesk"
+  folder = "Frontdesk",
+  apiKey?: string
 ): Promise<void> {
-  await request<unknown>("/accumulate", {
-    method: "POST",
-    body: JSON.stringify({ texts: [{ title, content, folder }] }),
-  });
+  await request<unknown>(
+    "/accumulate",
+    {
+      method: "POST",
+      body: JSON.stringify({ texts: [{ title, content, folder }] }),
+    },
+    apiKey
+  );
 }
 
 // ── Chat (streaming) ─────────────────────────────────────────────────────────
@@ -158,7 +195,7 @@ export async function accumulateNote(
  * so the UI never sees Aicoo's raw event shapes.
  */
 export async function* chatStream(
-  input: ChatInput & { systemPreamble?: string }
+  input: ChatInput & { systemPreamble?: string; apiKey?: string }
 ): AsyncGenerator<FrontdeskChunk> {
   const body: Record<string, unknown> = {
     message: input.systemPreamble
@@ -192,7 +229,7 @@ export async function* chatStream(
   try {
     res = await fetch(`${config.aicooBase}/chat`, {
       method: "POST",
-      headers: authHeaders(),
+      headers: authHeaders(input.apiKey),
       body: JSON.stringify(body),
       cache: "no-store",
       signal: ac.signal,
