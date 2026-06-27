@@ -24,6 +24,20 @@ export const config = {
       return "";
     return m;
   },
+
+  /**
+   * OpenRouter — used as the fast conversational layer in hybrid mode. When a
+   * key is present, general Q&A is answered by OpenRouter (~1-2s) while booking
+   * still routes to Aicoo's agent (real calendar). OpenAI-compatible API.
+   */
+  openrouterKey: process.env.OPENROUTER_API_KEY || "",
+  openrouterBase: (
+    process.env.OPENROUTER_BASE || "https://openrouter.ai/api/v1"
+  ).replace(/\/$/, ""),
+  get openrouterModel(): string {
+    const m = (process.env.OPENROUTER_MODEL || "").trim();
+    return m || "openai/gpt-4o-mini";
+  },
   /**
    * Mock mode. True when explicitly enabled OR when no key is present — so the
    * app is always runnable, and "no key" never means "blank screen".
@@ -51,4 +65,12 @@ export const config = {
 /** True when we can actually reach Aicoo (key present and not forced to mock). */
 export function liveMode(): boolean {
   return !config.mock && Boolean(config.aicooKey);
+}
+
+/**
+ * True when the fast OpenRouter conversational layer is available. In this mode
+ * general questions are answered by OpenRouter; booking still goes to Aicoo.
+ */
+export function hybridMode(): boolean {
+  return Boolean(config.openrouterKey);
 }

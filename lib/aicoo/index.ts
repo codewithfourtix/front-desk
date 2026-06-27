@@ -6,9 +6,11 @@
  * needs to know which is active.
  */
 
-import { config, liveMode } from "../config";
+import { config, liveMode, hybridMode } from "../config";
 import * as live from "./client";
 import { mockChatStream, mockTurnMeta } from "./mock";
+import { openrouterChatStream } from "../openrouter";
+import { isBookingTurn } from "../intent";
 import type {
   CreateShareInput,
   FrontdeskChunk,
@@ -102,10 +104,32 @@ export interface DeskTurn {
   conversationId?: string | number;
 }
 
-/** Stream one front-desk turn, live or mock, as normalized chunks. */
+/** Stream one front-desk turn as normalized chunks, routing for speed.
+ *
+ * Hybrid mode: general questions → fast OpenRouter layer; booking turns →
+ * Aicoo's agent (real calendar). Falls back to pure Aicoo (live) or the mock.
+ */
 export async function* deskChatStream(
   turn: DeskTurn
 ): AsyncGenerator<FrontdeskChunk> {
+  const booking = isBookingTurn(
+    turn.message,
+    turn.history,
+    turn.profile.bookingEnabled
+  );
+
+  // Fast path: answer general questions with OpenRouter when available.
+  if (hybridMode() && !booking) {
+    yield* openrouterChatStream({
+      profile: turn.profile,
+      message: turn.message,
+      history: turn.history,
+      timezone: turn.timezone,
+    });
+    return;
+  }
+
+  // Booking turns (or no OpenRouter) go to Aicoo's real agent...
   if (liveMode()) {
     yield* live.chatStream({
       message: turn.message,
@@ -115,6 +139,7 @@ export async function* deskChatStream(
     });
     return;
   }
+  // ...or the simulated COO when there's no Aicoo key.
   yield* mockChatStream({
     profile: turn.profile,
     message: turn.message,

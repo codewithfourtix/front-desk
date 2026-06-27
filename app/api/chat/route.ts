@@ -114,13 +114,19 @@ export async function POST(request: Request) {
       }
 
       // Persist whatever the agent produced, even on a partial/interrupted turn,
-      // so the host's inbox still reflects it.
+      // so the host's inbox still reflects it. A booking is confirmed either by
+      // the mock meta or by the live agent firing calendar-write tools.
+      const booked =
+        meta.booking ||
+        [...toolsUsed].some((t) =>
+          ["schedule_meeting", "create_calendar_event"].includes(t)
+        );
       if (fullText.trim()) {
         await appendMessage(convId, {
           role: "agent",
           text: fullText.trim(),
           tools: [...toolsUsed],
-          booking: meta.booking,
+          booking: booked,
         });
       }
 
