@@ -9,6 +9,10 @@ interface Props {
   params: Promise<{ token: string }>;
 }
 
+// Desks are created at runtime and read from disk — never prerender/cache this.
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { token } = await params;
   const desk = await getDeskByToken(token);
