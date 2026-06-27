@@ -313,6 +313,15 @@ export async function conversationsForDesk(
     .sort((a, b) => (a.lastAt < b.lastAt ? 1 : -1));
 }
 
+/** Count of confirmed bookings across a desk's conversations. */
+export async function bookingsForDesk(deskId: string): Promise<number> {
+  const convos = await conversationsForDesk(deskId);
+  return convos.reduce(
+    (n, c) => n + c.messages.filter((m) => m.booking).length,
+    0
+  );
+}
+
 /**
  * Locally-computed analytics, used in mock mode and as a fallback when the live
  * /share/list call is unavailable. Shape matches Aicoo's analytics so the

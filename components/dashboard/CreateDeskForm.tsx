@@ -81,15 +81,13 @@ export function CreateDeskForm({ onCreated }: Props) {
   }
 
   return (
-    <form onSubmit={submit} className="card p-5 sm:p-6">
+    <form onSubmit={submit}>
       <div className="mb-4 flex items-center justify-between">
-        <h2 className="font-display text-lg font-semibold text-ink">
-          Open a new desk
-        </h2>
+        <p className="text-sm text-muted">Set up your front desk.</p>
         <button
           type="button"
           onClick={fillExample}
-          className="text-xs font-semibold text-clay hover:underline"
+          className="rounded-md border border-line px-2.5 py-1 text-xs font-medium text-ink transition hover:bg-paper-2"
         >
           Use example
         </button>
