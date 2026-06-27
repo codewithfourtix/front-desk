@@ -24,10 +24,19 @@ export const config = {
     if (process.env.FRONTDESK_MOCK === "1") return true;
     return !this.aicooKey;
   },
-  /** Public origin for building share URLs. */
-  appUrl: (
-    process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000"
-  ).replace(/\/$/, ""),
+  /**
+   * Public origin for building share URLs. Prefers an explicit override, then
+   * Vercel's auto-provided domain (so deploys "just work" without setting it),
+   * then localhost for dev.
+   */
+  get appUrl(): string {
+    const explicit = process.env.NEXT_PUBLIC_APP_URL;
+    if (explicit) return explicit.replace(/\/$/, "");
+    const vercel =
+      process.env.VERCEL_PROJECT_PRODUCTION_URL || process.env.VERCEL_URL;
+    if (vercel) return `https://${vercel.replace(/\/$/, "")}`;
+    return "http://localhost:3000";
+  },
 } as const;
 
 /** True when we can actually reach Aicoo (key present and not forced to mock). */
