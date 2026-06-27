@@ -77,10 +77,24 @@ export async function POST(request: Request) {
   const encoder = new TextEncoder();
   const convId = conversation.id;
 
+  let cancelled = false;
+
   const stream = new ReadableStream<Uint8Array>({
     async start(controller) {
-      const send = (obj: unknown) =>
-        controller.enqueue(encoder.encode(JSON.stringify(obj) + "\n"));
+      let closed = false;
+      // Enqueue defensively: if the client has disconnected (controller closed),
+      // never throw — just stop streaming. This is what made the route crash
+      // with "Controller is already closed" when a request was interrupted.
+      const send = (obj: unknown): boolean => {
+        if (closed || cancelled) return false;
+        try {
+          controller.enqueue(encoder.encode(JSON.stringify(obj) + "\n"));
+          return true;
+        } catch {
+          closed = true;
+          return false;
+        }
+      };
 
       send({ kind: "meta", conversationId: convId });
 
@@ -89,6 +103,7 @@ export async function POST(request: Request) {
 
       try {
         for await (const chunk of deskChatStream(turn)) {
+          if (cancelled || closed) break;
           if (chunk.kind === "text") fullText += chunk.text;
           if (chunk.kind === "tool") toolsUsed.add(chunk.tool);
           send(chunk);
@@ -98,7 +113,8 @@ export async function POST(request: Request) {
         send({ kind: "error", message: "The desk hit a snag. Try again." });
       }
 
-      // Persist the agent's reply so it appears in the host's inbox.
+      // Persist whatever the agent produced, even on a partial/interrupted turn,
+      // so the host's inbox still reflects it.
       if (fullText.trim()) {
         await appendMessage(convId, {
           role: "agent",
@@ -108,7 +124,17 @@ export async function POST(request: Request) {
         });
       }
 
-      controller.close();
+      if (!closed) {
+        try {
+          controller.close();
+        } catch {
+          /* already closed by the client — fine */
+        }
+      }
+    },
+    cancel() {
+      // Client went away (navigated, refreshed, or dev HMR recompiled). Stop.
+      cancelled = true;
     },
   });
 
