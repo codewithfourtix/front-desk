@@ -15,10 +15,11 @@ Availability: I take intro calls Tue-Thu afternoons (Asia/Karachi).
 Stack: Next.js, TypeScript, Python, Aicoo, Claude. I love agent-to-agent and coordination problems.
 Links: portfolio at fourtix.com. Email intro@fourtix.com for anything urgent.`,
   bookingEnabled: true,
-  accent: "#c4502a",
+  accent: "#0070f3",
 };
 
-const ACCENTS = ["#c4502a", "#1f5d45", "#2f5fb0", "#7a3ea3", "#b4791b", "#17130f"];
+// Geist / Vercel brand accents — black first.
+const ACCENTS = ["#000000", "#0070f3", "#7928ca", "#ff0080", "#f5a623", "#50e3c2"];
 
 interface Props {
   onCreated: (desk: DeskDTO) => void;

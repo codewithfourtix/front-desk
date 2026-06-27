@@ -44,7 +44,7 @@ function Hero() {
           <h1 className="font-display text-[2.7rem] font-semibold leading-[1.05] tracking-tight text-ink sm:text-6xl">
             Send a link,
             <br />
-            <span className="text-clay">not a document.</span>
+            <span className="text-muted">not a document.</span>
           </h1>
           <p className="mt-5 max-w-xl text-lg leading-relaxed text-ink-2">
             Frontdesk turns your AI COO into a shareable front desk. Drop one link —
@@ -73,7 +73,7 @@ function Hero() {
 /** A static, on-brand preview of a desk conversation. */
 function DeskPreview() {
   return (
-    <div className="card overflow-hidden shadow-sm rise" style={{ boxShadow: "0 20px 60px -30px rgba(23,19,15,.35)" }}>
+    <div className="card overflow-hidden rise" style={{ boxShadow: "0 8px 30px rgba(0,0,0,.08)" }}>
       <div className="h-1.5 w-full" style={{ background: "var(--color-clay)" }} />
       <div className="flex items-center gap-3 border-b border-line p-4">
         <span className="flex h-10 w-10 items-center justify-center rounded-full text-sm font-semibold text-white" style={{ background: "var(--color-clay)" }}>
