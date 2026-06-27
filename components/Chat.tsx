@@ -88,6 +88,10 @@ export function Chat({
       ]);
     };
 
+    // Show the agent bubble (with typing dots) immediately — the real agent can
+    // take several seconds to first token, and a frozen UI reads as "broken".
+    ensureAgent();
+
     const tz =
       Intl.DateTimeFormat().resolvedOptions().timeZone || undefined;
 
@@ -307,10 +311,13 @@ function Bubble({ m, firstName }: { m: UIMessage; firstName: string }) {
         >
           <span className="whitespace-pre-wrap">{m.text}</span>
           {m.streaming && !m.text && (
-            <span className="inline-flex gap-1 align-middle">
-              <span className="dot" />
-              <span className="dot" />
-              <span className="dot" />
+            <span className="inline-flex items-center gap-2 align-middle">
+              <span className="inline-flex gap-1">
+                <span className="dot" />
+                <span className="dot" />
+                <span className="dot" />
+              </span>
+              <ThinkingHint />
             </span>
           )}
           {m.streaming && m.text && <Caret />}
@@ -326,6 +333,25 @@ function Bubble({ m, firstName }: { m: UIMessage; firstName: string }) {
         )}
       </div>
     </div>
+  );
+}
+
+/** Reassures during the live agent's multi-second think before first token. */
+function ThinkingHint() {
+  const [stage, setStage] = useState(0);
+  useEffect(() => {
+    const t1 = setTimeout(() => setStage(1), 3500);
+    const t2 = setTimeout(() => setStage(2), 12000);
+    return () => {
+      clearTimeout(t1);
+      clearTimeout(t2);
+    };
+  }, []);
+  if (stage === 0) return null;
+  return (
+    <span className="text-xs text-muted">
+      {stage === 1 ? "thinking…" : "still working — the live agent takes a few seconds"}
+    </span>
   );
 }
 
