@@ -13,8 +13,17 @@ export const config = {
   ),
   /** Bearer key for the host's Aicoo account. Server-only. */
   aicooKey: process.env.AICOO_API_KEY || "",
-  /** Optional model override forwarded to /chat. */
-  aicooModel: process.env.AICOO_MODEL || "",
+  /**
+   * Optional model override forwarded to /chat. Junk placeholder values
+   * ("null", "none", "default", "undefined") are treated as unset so a stray
+   * env value can't get sent as a literal model name and 400 the agent.
+   */
+  get aicooModel(): string {
+    const m = (process.env.AICOO_MODEL || "").trim();
+    if (!m || ["null", "none", "default", "undefined"].includes(m.toLowerCase()))
+      return "";
+    return m;
+  },
   /**
    * Mock mode. True when explicitly enabled OR when no key is present — so the
    * app is always runnable, and "no key" never means "blank screen".
