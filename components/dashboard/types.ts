@@ -38,6 +38,7 @@ export interface DeskDTO {
   createdAt: string;
   revoked?: boolean;
   analytics: AnalyticsDTO;
+  bookings: number;
   live: boolean;
 }
 

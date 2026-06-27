@@ -24,6 +24,7 @@ import {
   updateDesk as storeUpdateDesk,
   analyticsForDesk,
   conversationsForDesk,
+  bookingsForDesk,
   shortToken,
   type Desk,
   type DeskProfile,
@@ -99,6 +100,7 @@ function normalizeShare(
 export interface DeskView extends Desk {
   publicUrl: string;
   analytics: { uniqueVisitors: number; conversationCount: number; messageCount: number };
+  bookings: number;
   live: boolean;
 }
 
@@ -140,6 +142,7 @@ export async function createDesk(payload: CreateDeskPayload): Promise<DeskView> 
     ...desk,
     publicUrl: publicUrl(desk.token),
     analytics: await analyticsForDesk(desk.id),
+    bookings: 0,
     live: !link.linkId.startsWith("mock_"),
   };
 }
@@ -158,6 +161,7 @@ export async function listDeskViews(): Promise<DeskView[]> {
       ...desk,
       publicUrl: publicUrl(desk.token),
       analytics: await analyticsForDesk(desk.id),
+      bookings: await bookingsForDesk(desk.id),
       live: liveMap.has(desk.linkId) || !desk.linkId.startsWith("mock_"),
     });
   }
@@ -171,6 +175,7 @@ export async function getDeskView(id: string): Promise<DeskView | undefined> {
     ...desk,
     publicUrl: publicUrl(desk.token),
     analytics: await analyticsForDesk(desk.id),
+    bookings: await bookingsForDesk(desk.id),
     live: !desk.linkId.startsWith("mock_"),
   };
 }

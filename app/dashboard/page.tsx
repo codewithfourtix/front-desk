@@ -34,16 +34,6 @@ export default async function DashboardPage() {
       </header>
 
       <main className="mx-auto max-w-6xl px-4 py-8 sm:px-6">
-        <div className="mb-8">
-          <h1 className="font-display text-3xl font-semibold tracking-tight text-ink">
-            Your front desks
-          </h1>
-          <p className="mt-1.5 max-w-2xl text-muted">
-            Each desk is a shareable, access-bounded link to your AI COO. Open one,
-            drop the link anywhere, and watch the questions — and bookings — come in.
-          </p>
-        </div>
-
         <DashboardClient initialDesks={desks} />
       </main>
     </div>
