@@ -46,38 +46,44 @@ export default async function DeskPage({ params }: Props) {
     `What should I know first?`,
   ];
 
+  const accent = profile.accent || "var(--color-clay)";
+
   return (
     <main className="mx-auto flex min-h-screen max-w-2xl flex-col px-4 py-6 sm:py-10">
       {/* Desk header */}
       <header className="card overflow-hidden">
+        <div className="h-1 w-full" style={{ background: accent }} />
         <div
-          className="h-1.5 w-full"
-          style={{ background: profile.accent || "var(--color-clay)" }}
-        />
-        <div className="flex items-start gap-4 p-5 sm:p-6">
-          <span
-            className="flex h-14 w-14 shrink-0 items-center justify-center rounded-full text-xl font-semibold text-white"
-            style={{ background: profile.accent || "var(--color-clay)" }}
-          >
-            {profile.name.slice(0, 1).toUpperCase()}
+          className="flex items-center gap-4 p-5 sm:p-6"
+          style={{
+            background: `linear-gradient(180deg, color-mix(in srgb, ${accent} 7%, var(--color-card)), var(--color-card))`,
+          }}
+        >
+          <span className="relative shrink-0">
+            <span
+              className="flex h-14 w-14 items-center justify-center rounded-full text-xl font-semibold text-white shadow-sm"
+              style={{ background: accent }}
+            >
+              {profile.name.slice(0, 1).toUpperCase()}
+            </span>
+            <span
+              className="absolute bottom-0 right-0 h-3.5 w-3.5 rounded-full border-2 border-card"
+              style={{ background: "var(--color-good)" }}
+              title="Online"
+            />
           </span>
           <div className="min-w-0 flex-1">
             <div className="flex items-center gap-2">
-              <h1 className="font-display text-xl font-semibold text-ink">
+              <h1 className="font-display text-xl font-semibold tracking-tight text-ink">
                 {profile.name}
               </h1>
-              <span className="tag">
-                <span
-                  className="inline-block h-1.5 w-1.5 rounded-full"
-                  style={{ background: "var(--color-good)" }}
-                />
-                Open
-              </span>
+              {profile.role && (
+                <span className="hidden truncate text-sm text-muted sm:inline">
+                  · {profile.role}
+                </span>
+              )}
             </div>
-            {profile.role && (
-              <p className="text-sm text-muted">{profile.role}</p>
-            )}
-            <p className="mt-1.5 text-[0.95rem] leading-relaxed text-ink-2">
+            <p className="mt-1 line-clamp-2 text-[0.95rem] leading-relaxed text-ink-2">
               {profile.headline}
             </p>
           </div>
