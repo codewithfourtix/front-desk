@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { BookingProgress, MeetingCard } from "./BookingProgress";
 
 export interface ChatProps {
   token: string;
@@ -18,6 +19,8 @@ interface UIMessage {
   tools?: string[];
   booking?: boolean;
   streaming?: boolean;
+  /** This agent turn is an actual booking — show the booking experience. */
+  bookingMode?: boolean;
 }
 
 // Friendly labels for Aicoo tool names that may surface mid-stream.
@@ -146,6 +149,10 @@ export function Chat({
         switch (evt.kind) {
           case "meta":
             convId.current = evt.conversationId as string;
+            if (evt.booking) {
+              ensureAgent();
+              patch(agentId, { bookingMode: true });
+            }
             break;
           case "tool": {
             const t = evt.tool as string;
@@ -286,6 +293,29 @@ export function Chat({
 
 function Bubble({ m, firstName }: { m: UIMessage; firstName: string }) {
   const isAgent = m.role === "agent";
+
+  // Booking turns get the dedicated experience: an animated stepper while Aicoo
+  // works, then a confirmed-meeting card (or a graceful message if it couldn't).
+  if (isAgent && m.bookingMode) {
+    return (
+      <div className="flex gap-3 rise">
+        <Avatar isAgent firstName={firstName} />
+        <div className="max-w-[85%]">
+          {m.streaming && !m.text ? (
+            <BookingProgress />
+          ) : m.booking ? (
+            <MeetingCard text={m.text} />
+          ) : (
+            <div className="rounded-2xl rounded-tl-sm border border-line bg-card px-4 py-2.5 text-[0.95rem] leading-relaxed text-ink">
+              <span className="whitespace-pre-wrap">{m.text}</span>
+              {m.streaming && <Caret />}
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className={`flex gap-3 rise ${isAgent ? "" : "flex-row-reverse"}`}>
       <Avatar isAgent={isAgent} firstName={firstName} />
