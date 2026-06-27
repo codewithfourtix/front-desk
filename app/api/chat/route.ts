@@ -1,4 +1,5 @@
 import { deskChatStream, turnBooks, type DeskTurn } from "@/lib/aicoo";
+import { isBookingTurn } from "@/lib/intent";
 import { deskIsOpen } from "@/lib/desk-service";
 import {
   getDeskByToken,
@@ -96,7 +97,14 @@ export async function POST(request: Request) {
         }
       };
 
-      send({ kind: "meta", conversationId: convId });
+      // Tell the client whether this turn is an actual booking, so it can show
+      // the booking progress experience instead of a plain typing indicator.
+      const booking = isBookingTurn(
+        message,
+        history,
+        desk.profile.bookingEnabled
+      );
+      send({ kind: "meta", conversationId: convId, booking });
 
       let fullText = "";
       const toolsUsed = new Set<string>(meta.tools);
