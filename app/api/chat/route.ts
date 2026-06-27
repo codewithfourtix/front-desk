@@ -70,6 +70,7 @@ export async function POST(request: Request) {
     message,
     history,
     timezone: body.timezone,
+    apiKey: desk.aicooKey,
   };
   // Mock mode can tell us up-front whether this turn books; live mode infers
   // from the tool chunks it emits.

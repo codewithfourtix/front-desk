@@ -82,9 +82,23 @@ export function DeskCard({
 
         {/* Meta + actions */}
         <div className="mt-4 flex items-center justify-between">
-          <span className="text-[0.7rem] text-muted">
-            {ACCESS_LABELS[desk.share.access]}
-          </span>
+          <div className="flex items-center gap-2">
+            <span className="text-[0.7rem] text-muted">
+              {ACCESS_LABELS[desk.share.access]}
+            </span>
+            {desk.profile.bookingEnabled && (
+              <span
+                className="tag text-[0.62rem]"
+                title={
+                  desk.byok
+                    ? "Bookings go to the host's own Google Calendar"
+                    : "Bookings use the shared demo account"
+                }
+              >
+                {desk.byok ? "Own calendar" : "Demo calendar"}
+              </span>
+            )}
+          </div>
           <div className="flex gap-2">
             <button onClick={() => onOpenInbox(desk)} className="btn btn-ghost px-3 py-1.5 text-xs">
               Inbox
