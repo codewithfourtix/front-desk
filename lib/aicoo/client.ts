@@ -229,6 +229,13 @@ export async function* chatStream(
   let totalTokens: number | undefined;
   let sawCompletion = false;
   let gotText = false;
+  let booked = false;
+
+  const CALENDAR_WRITE = new Set([
+    "schedule_meeting",
+    "create_calendar_event",
+    "edit_calendar_event",
+  ]);
 
   const processLine = function* (
     line: string
@@ -257,6 +264,17 @@ export async function* chatStream(
         if (evt.toolName)
           yield { kind: "tool", tool: String(evt.toolName) };
         break;
+      case "tool-call-complete": {
+        // A booking is real only when a calendar-write tool actually succeeds —
+        // not merely when it was attempted (create_calendar_event often 404s).
+        const name = String(evt.toolName ?? "");
+        const result = evt.result as Record<string, unknown> | undefined;
+        const ok =
+          evt.success === true ||
+          (result && result.success === true && result.isError !== true);
+        if (CALENDAR_WRITE.has(name) && ok) booked = true;
+        break;
+      }
       case "completion": {
         sawCompletion = true;
         const meta = (evt.metadata as Record<string, unknown>) ?? {};
@@ -295,13 +313,13 @@ export async function* chatStream(
     const rest = think.flush();
     if (rest) yield { kind: "text", text: rest };
 
-    yield { kind: "done", conversationId, totalTokens };
+    yield { kind: "done", conversationId, totalTokens, booked };
   } catch {
     // Timed out or the connection dropped mid-stream. Salvage partial text so
     // the visitor keeps whatever the agent already said.
     const rest = think.flush();
     if (rest) yield { kind: "text", text: rest };
-    if (gotText) yield { kind: "done", conversationId, totalTokens };
+    if (gotText) yield { kind: "done", conversationId, totalTokens, booked };
     else
       yield {
         kind: "error",

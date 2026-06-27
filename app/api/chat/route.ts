@@ -100,12 +100,16 @@ export async function POST(request: Request) {
 
       let fullText = "";
       const toolsUsed = new Set<string>(meta.tools);
+      // A booking counts only when a calendar tool actually succeeded — the
+      // client reports that on the `done` chunk (mock pre-computes it too).
+      let booked = meta.booking;
 
       try {
         for await (const chunk of deskChatStream(turn)) {
           if (cancelled || closed) break;
           if (chunk.kind === "text") fullText += chunk.text;
           if (chunk.kind === "tool") toolsUsed.add(chunk.tool);
+          if (chunk.kind === "done" && chunk.booked) booked = true;
           send(chunk);
         }
       } catch (err) {
@@ -114,13 +118,7 @@ export async function POST(request: Request) {
       }
 
       // Persist whatever the agent produced, even on a partial/interrupted turn,
-      // so the host's inbox still reflects it. A booking is confirmed either by
-      // the mock meta or by the live agent firing calendar-write tools.
-      const booked =
-        meta.booking ||
-        [...toolsUsed].some((t) =>
-          ["schedule_meeting", "create_calendar_event"].includes(t)
-        );
+      // so the host's inbox still reflects it.
       if (fullText.trim()) {
         await appendMessage(convId, {
           role: "agent",
