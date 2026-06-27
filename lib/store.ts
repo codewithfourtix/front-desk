@@ -99,11 +99,51 @@ interface DB {
 }
 
 // ── Persistence (fresh reads + serialized writes) ────────────────────────────
+//
+// Two backends behind one interface:
+//   • Upstash Redis / Vercel KV when its env vars are present (serverless-safe —
+//     this is what makes the app work on Vercel, where the filesystem is
+//     read-only/ephemeral).
+//   • A local JSON file otherwise (great for `next dev`).
+// The whole DB is a single JSON document under one key/file — simple and plenty
+// for the hackathon; swap to per-entity keys later if it ever needs scale.
 
 const DATA_DIR = path.join(process.cwd(), ".data");
 const DB_FILE = path.join(DATA_DIR, "frontdesk.json");
+const DB_KEY = "frontdesk:db";
+
+const REDIS_URL =
+  process.env.KV_REST_API_URL || process.env.UPSTASH_REDIS_REST_URL;
+const REDIS_TOKEN =
+  process.env.KV_REST_API_TOKEN || process.env.UPSTASH_REDIS_REST_TOKEN;
+
+// Lazily created so local dev never touches Redis.
+let redisClient: import("@upstash/redis").Redis | null | undefined;
+async function getRedis() {
+  if (redisClient !== undefined) return redisClient;
+  if (REDIS_URL && REDIS_TOKEN) {
+    const { Redis } = await import("@upstash/redis");
+    redisClient = new Redis({ url: REDIS_URL, token: REDIS_TOKEN });
+  } else {
+    redisClient = null;
+  }
+  return redisClient;
+}
+
+/** True when a serverless datastore is configured. */
+export function usingRemoteStore(): boolean {
+  return Boolean(REDIS_URL && REDIS_TOKEN);
+}
 
 async function readDB(): Promise<DB> {
+  const redis = await getRedis();
+  if (redis) {
+    const data = await redis.get<DB>(DB_KEY);
+    return {
+      desks: data?.desks ?? [],
+      conversations: data?.conversations ?? [],
+    };
+  }
   try {
     const raw = await fs.readFile(DB_FILE, "utf8");
     const parsed = JSON.parse(raw) as Partial<DB>;
@@ -117,6 +157,11 @@ async function readDB(): Promise<DB> {
 }
 
 async function writeDB(db: DB): Promise<void> {
+  const redis = await getRedis();
+  if (redis) {
+    await redis.set(DB_KEY, db);
+    return;
+  }
   await fs.mkdir(DATA_DIR, { recursive: true });
   // Write atomically: temp file + rename, so a reader never sees a half file.
   const tmp = `${DB_FILE}.${randomUUID().slice(0, 8)}.tmp`;
