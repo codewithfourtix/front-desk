@@ -77,14 +77,17 @@ export async function createShare(
     method: "POST",
     body: JSON.stringify(input),
   });
-  // Normalize loosely — field names per the spec, tolerant of nesting.
-  const link = (raw.link as Record<string, unknown>) ?? raw;
+  // Per spec the link is under `shareLink`; id=`id`, expiry=`expiresAt`.
+  const link =
+    (raw.shareLink as Record<string, unknown>) ??
+    (raw.link as Record<string, unknown>) ??
+    raw;
   return {
-    linkId: String(link.linkId ?? link.id ?? ""),
+    linkId: String(link.id ?? link.linkId ?? ""),
     token: String(link.token ?? ""),
     url: String(link.url ?? link.shareUrl ?? ""),
     agentUrl: String(link.agentUrl ?? link.url ?? ""),
-    expiry: String(link.expiry ?? link.expiresAt ?? ""),
+    expiry: String(link.expiresAt ?? link.expiry ?? ""),
   };
 }
 
@@ -104,16 +107,23 @@ export async function listShares(opts?: {
   return links.map((l) => {
     const a = (l.analytics as Record<string, unknown>) ?? {};
     return {
-      linkId: String(l.linkId ?? l.id ?? ""),
+      // Per spec: id, isActive (not status), expiresAt, and analytics use
+      // totalConversations / totalMessages.
+      linkId: String(l.id ?? l.linkId ?? ""),
       label: String(l.label ?? ""),
-      status: (l.status as ShareListItem["status"]) ?? "active",
+      status:
+        l.isActive === false
+          ? "revoked"
+          : (l.status as ShareListItem["status"]) ?? "active",
       access: (l.access as ShareListItem["access"]) ?? "read",
       scope: (l.scope as ShareListItem["scope"]) ?? "all",
-      expiry: String(l.expiry ?? ""),
+      expiry: String(l.expiresAt ?? l.expiry ?? ""),
       analytics: {
         uniqueVisitors: Number(a.uniqueVisitors ?? 0),
-        conversationCount: Number(a.conversationCount ?? 0),
-        messageCount: Number(a.messageCount ?? 0),
+        conversationCount: Number(
+          a.totalConversations ?? a.conversationCount ?? 0
+        ),
+        messageCount: Number(a.totalMessages ?? a.messageCount ?? 0),
       },
     };
   });

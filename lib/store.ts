@@ -5,9 +5,14 @@
  * Aicoo share link, and logs the conversations that happen at each desk so the
  * dashboard can show an inbox + analytics.
  *
- * Persisted as JSON under `.data/` so it survives `next dev` restarts. This is a
- * deliberately simple single-process store — perfect for the hackathon demo,
- * and trivially swappable for a real DB later (same function surface).
+ * Persisted as JSON under `.data/`. IMPORTANT: reads always hit disk fresh — in
+ * Next dev the page bundle and the route-handler bundle are separate module
+ * graphs, so a long-lived in-memory cache goes stale across them (the classic
+ * "created it but the page says not found" bug). Writes are serialized through
+ * an in-process lock so concurrent read-modify-write cycles don't clobber.
+ *
+ * Single-process, file-backed, dependency-free — ideal for the hackathon and
+ * trivially swappable for a real DB later (same function surface).
  */
 
 import { promises as fs } from "node:fs";
@@ -93,38 +98,48 @@ interface DB {
   conversations: Conversation[];
 }
 
-// ── Persistence ──────────────────────────────────────────────────────────────
+// ── Persistence (fresh reads + serialized writes) ────────────────────────────
 
 const DATA_DIR = path.join(process.cwd(), ".data");
 const DB_FILE = path.join(DATA_DIR, "frontdesk.json");
 
-let cache: DB | null = null;
-let writeQueue: Promise<void> = Promise.resolve();
-
-async function load(): Promise<DB> {
-  if (cache) return cache;
+async function readDB(): Promise<DB> {
   try {
     const raw = await fs.readFile(DB_FILE, "utf8");
-    cache = JSON.parse(raw) as DB;
+    const parsed = JSON.parse(raw) as Partial<DB>;
+    return {
+      desks: parsed.desks ?? [],
+      conversations: parsed.conversations ?? [],
+    };
   } catch {
-    cache = { desks: [], conversations: [] };
+    return { desks: [], conversations: [] };
   }
-  return cache;
 }
 
-async function persist(): Promise<void> {
-  // Serialize writes so concurrent requests don't clobber the file.
-  writeQueue = writeQueue.then(async () => {
-    if (!cache) return;
-    await fs.mkdir(DATA_DIR, { recursive: true });
-    await fs.writeFile(DB_FILE, JSON.stringify(cache, null, 2), "utf8");
-  });
-  return writeQueue;
+async function writeDB(db: DB): Promise<void> {
+  await fs.mkdir(DATA_DIR, { recursive: true });
+  // Write atomically: temp file + rename, so a reader never sees a half file.
+  const tmp = `${DB_FILE}.${randomUUID().slice(0, 8)}.tmp`;
+  await fs.writeFile(tmp, JSON.stringify(db, null, 2), "utf8");
+  await fs.rename(tmp, DB_FILE);
+}
+
+let lock: Promise<unknown> = Promise.resolve();
+
+/** Serialize a read-modify-write cycle so concurrent mutations don't race. */
+function withLock<T>(fn: () => Promise<T>): Promise<T> {
+  const run = lock.then(fn, fn);
+  // Keep the chain alive regardless of individual outcomes.
+  lock = run.then(
+    () => undefined,
+    () => undefined
+  );
+  return run as Promise<T>;
 }
 
 // ── Ids ──────────────────────────────────────────────────────────────────────
 
-/** Short, URL-safe, lowercase token (collision-checked by caller domain). */
+/** Short, URL-safe, lowercase token. */
 export function shortToken(len = 10): string {
   return randomUUID().replace(/-/g, "").slice(0, len);
 }
@@ -139,34 +154,36 @@ export async function createDesk(input: {
   share: DeskShareConfig;
   expiry: string;
 }): Promise<Desk> {
-  const db = await load();
-  const desk: Desk = {
-    id: randomUUID(),
-    token: input.token,
-    linkId: input.linkId,
-    agentUrl: input.agentUrl,
-    profile: input.profile,
-    share: input.share,
-    expiry: input.expiry,
-    createdAt: new Date().toISOString(),
-  };
-  db.desks.unshift(desk);
-  await persist();
-  return desk;
+  return withLock(async () => {
+    const db = await readDB();
+    const desk: Desk = {
+      id: randomUUID(),
+      token: input.token,
+      linkId: input.linkId,
+      agentUrl: input.agentUrl,
+      profile: input.profile,
+      share: input.share,
+      expiry: input.expiry,
+      createdAt: new Date().toISOString(),
+    };
+    db.desks.unshift(desk);
+    await writeDB(db);
+    return desk;
+  });
 }
 
 export async function listDesks(): Promise<Desk[]> {
-  const db = await load();
+  const db = await readDB();
   return db.desks;
 }
 
 export async function getDeskByToken(token: string): Promise<Desk | undefined> {
-  const db = await load();
+  const db = await readDB();
   return db.desks.find((d) => d.token === token);
 }
 
 export async function getDeskById(id: string): Promise<Desk | undefined> {
-  const db = await load();
+  const db = await readDB();
   return db.desks.find((d) => d.id === id);
 }
 
@@ -174,12 +191,14 @@ export async function updateDesk(
   id: string,
   patch: Partial<Pick<Desk, "profile" | "share" | "revoked" | "expiry">>
 ): Promise<Desk | undefined> {
-  const db = await load();
-  const desk = db.desks.find((d) => d.id === id);
-  if (!desk) return undefined;
-  Object.assign(desk, patch);
-  await persist();
-  return desk;
+  return withLock(async () => {
+    const db = await readDB();
+    const desk = db.desks.find((d) => d.id === id);
+    if (!desk) return undefined;
+    Object.assign(desk, patch);
+    await writeDB(db);
+    return desk;
+  });
 }
 
 export async function revokeDesk(id: string): Promise<boolean> {
@@ -193,25 +212,27 @@ export async function startConversation(
   deskId: string,
   visitorLabel: string
 ): Promise<Conversation> {
-  const db = await load();
-  const now = new Date().toISOString();
-  const convo: Conversation = {
-    id: randomUUID(),
-    deskId,
-    visitorLabel,
-    startedAt: now,
-    lastAt: now,
-    messages: [],
-  };
-  db.conversations.unshift(convo);
-  await persist();
-  return convo;
+  return withLock(async () => {
+    const db = await readDB();
+    const now = new Date().toISOString();
+    const convo: Conversation = {
+      id: randomUUID(),
+      deskId,
+      visitorLabel,
+      startedAt: now,
+      lastAt: now,
+      messages: [],
+    };
+    db.conversations.unshift(convo);
+    await writeDB(db);
+    return convo;
+  });
 }
 
 export async function getConversation(
   id: string
 ): Promise<Conversation | undefined> {
-  const db = await load();
+  const db = await readDB();
   return db.conversations.find((c) => c.id === id);
 }
 
@@ -219,27 +240,29 @@ export async function appendMessage(
   conversationId: string,
   msg: Omit<DeskMessage, "id" | "ts"> & { ts?: string }
 ): Promise<DeskMessage | undefined> {
-  const db = await load();
-  const convo = db.conversations.find((c) => c.id === conversationId);
-  if (!convo) return undefined;
-  const full: DeskMessage = {
-    id: randomUUID(),
-    ts: msg.ts ?? new Date().toISOString(),
-    role: msg.role,
-    text: msg.text,
-    tools: msg.tools,
-    booking: msg.booking,
-  };
-  convo.messages.push(full);
-  convo.lastAt = full.ts;
-  await persist();
-  return full;
+  return withLock(async () => {
+    const db = await readDB();
+    const convo = db.conversations.find((c) => c.id === conversationId);
+    if (!convo) return undefined;
+    const full: DeskMessage = {
+      id: randomUUID(),
+      ts: msg.ts ?? new Date().toISOString(),
+      role: msg.role,
+      text: msg.text,
+      tools: msg.tools,
+      booking: msg.booking,
+    };
+    convo.messages.push(full);
+    convo.lastAt = full.ts;
+    await writeDB(db);
+    return full;
+  });
 }
 
 export async function conversationsForDesk(
   deskId: string
 ): Promise<Conversation[]> {
-  const db = await load();
+  const db = await readDB();
   return db.conversations
     .filter((c) => c.deskId === deskId)
     .sort((a, b) => (a.lastAt < b.lastAt ? 1 : -1));
