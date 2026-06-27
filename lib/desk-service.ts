@@ -147,18 +147,18 @@ export async function createDesk(payload: CreateDeskPayload): Promise<DeskView> 
 // ── List (with analytics) ────────────────────────────────────────────────────
 
 export async function listDeskViews(): Promise<DeskView[]> {
+  // Visitors chat through Frontdesk's own page (proxied via the host's key), so
+  // our local store — not Aicoo's share-link analytics — is the source of truth
+  // for real desk activity. We still consult /share/list to confirm each link is
+  // a genuine Aicoo resource (the "live" badge).
   const [desks, liveMap] = await Promise.all([listDesks(), liveShareList()]);
   const views: DeskView[] = [];
   for (const desk of desks) {
-    const liveItem = liveMap.get(desk.linkId);
-    const analytics = liveItem
-      ? liveItem.analytics
-      : await analyticsForDesk(desk.id);
     views.push({
       ...desk,
       publicUrl: publicUrl(desk.token),
-      analytics,
-      live: Boolean(liveItem),
+      analytics: await analyticsForDesk(desk.id),
+      live: liveMap.has(desk.linkId) || !desk.linkId.startsWith("mock_"),
     });
   }
   return views;

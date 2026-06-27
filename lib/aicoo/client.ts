@@ -9,7 +9,6 @@
 import { config } from "../config";
 import type {
   ChatInput,
-  ChatStreamEvent,
   CreateShareInput,
   FrontdeskChunk,
   ShareLink,
@@ -196,6 +195,51 @@ export async function* chatStream(
   const reader = res.body.getReader();
   const decoder = new TextDecoder();
   let buffer = "";
+  const think = makeThinkFilter();
+  let conversationId: string | number | undefined;
+  let totalTokens: number | undefined;
+  let sawCompletion = false;
+
+  const processLine = function* (
+    line: string
+  ): Generator<FrontdeskChunk> {
+    let evt: Record<string, unknown>;
+    try {
+      evt = JSON.parse(line) as Record<string, unknown>;
+    } catch {
+      return; // ignore keep-alives / malformed lines
+    }
+    switch (evt.type) {
+      case "conversation-start":
+        conversationId = evt.conversationId as string | number | undefined;
+        break;
+      case "text-delta": {
+        // The real agent interleaves <think>…</think> reasoning in the text
+        // stream — strip it so visitors only ever see the final answer.
+        const visible = think.push(String(evt.textDelta ?? ""));
+        if (visible) yield { kind: "text", text: visible };
+        break;
+      }
+      case "tool-call-start":
+        if (evt.toolName)
+          yield { kind: "tool", tool: String(evt.toolName) };
+        break;
+      case "completion": {
+        sawCompletion = true;
+        const meta = (evt.metadata as Record<string, unknown>) ?? {};
+        totalTokens = meta.totalTokens as number | undefined;
+        break; // emit a single `done` after flushing, below
+      }
+      case "error":
+        yield {
+          kind: "error",
+          message: String(evt.error ?? "The desk hit a snag."),
+        };
+        break;
+      default:
+        break; // pipeline-progress, iteration-*, timing, message-saved → noise
+    }
+  };
 
   while (true) {
     const { done, value } = await reader.read();
@@ -206,44 +250,75 @@ export async function* chatStream(
     while ((nl = buffer.indexOf("\n")) !== -1) {
       const line = buffer.slice(0, nl).trim();
       buffer = buffer.slice(nl + 1);
-      if (!line) continue;
-      const chunk = translate(line);
-      if (chunk) yield chunk;
+      if (line) yield* processLine(line);
     }
   }
-  // Flush any trailing partial line.
   const tail = buffer.trim();
-  if (tail) {
-    const chunk = translate(tail);
-    if (chunk) yield chunk;
-  }
+  if (tail) yield* processLine(tail);
+
+  // Flush any remaining visible text once the stream is complete.
+  const rest = think.flush();
+  if (rest) yield { kind: "text", text: rest };
+
+  yield { kind: "done", conversationId, totalTokens };
+  void sawCompletion;
 }
 
-function translate(line: string): FrontdeskChunk | null {
-  let evt: ChatStreamEvent;
-  try {
-    evt = JSON.parse(line) as ChatStreamEvent;
-  } catch {
-    return null; // ignore keep-alives / malformed lines
-  }
-  switch (evt.type) {
-    case "text-delta":
-      return { kind: "text", text: (evt as { textDelta: string }).textDelta };
-    case "tool-call-start":
-      return { kind: "tool", tool: (evt as { toolName: string }).toolName };
-    case "completion": {
-      const meta = (evt as { metadata?: Record<string, unknown> }).metadata;
-      return {
-        kind: "done",
-        conversationId: meta?.conversationId as string | number | undefined,
-        totalTokens: meta?.totalTokens as number | undefined,
-      };
-    }
-    case "error":
-      return { kind: "error", message: (evt as { error: string }).error };
-    default:
-      return null;
-  }
+/**
+ * Stateful filter that removes the agent's structured control blocks from a
+ * token stream — `<think>` reasoning, `<suggestions>` follow-ups, and similar —
+ * tolerating tags split across deltas. Returns only the newly-visible text on
+ * each push; call flush() at the end to drain trailing text. Visitors should
+ * only ever see the agent's actual answer prose.
+ */
+const STRIP_TAGS = [
+  "think",
+  "thinking",
+  "reasoning",
+  "scratchpad",
+  "plan",
+  "suggestions",
+  "tool_call",
+  "tool_result",
+];
+
+function makeThinkFilter() {
+  let raw = "";
+  let emitted = 0;
+
+  const completeRe = new RegExp(
+    `<(${STRIP_TAGS.join("|")})\\b[^>]*>[\\s\\S]*?</\\1>`,
+    "gi"
+  );
+  const openRe = new RegExp(`<(?:${STRIP_TAGS.join("|")})\\b`, "i");
+
+  const visibleOf = (s: string, atEnd: boolean): string => {
+    // Remove complete control blocks (think/suggestions/etc). Replace with a
+    // space so adjacent sentences don't get glued together ("AM.I tried").
+    let out = s.replace(completeRe, " ");
+    // Anything after an unclosed control tag is in-progress — drop it.
+    const m = out.match(openRe);
+    if (m && m.index !== undefined) out = out.slice(0, m.index);
+    // Mid-stream, also drop a dangling partial tag like "<sug" or "</thin".
+    if (!atEnd) out = out.replace(/<\/?[a-z_]*$/i, "");
+    return out;
+  };
+
+  return {
+    push(t: string): string {
+      raw += t;
+      const vis = visibleOf(raw, false);
+      const delta = vis.length > emitted ? vis.slice(emitted) : "";
+      emitted = Math.max(emitted, vis.length);
+      return delta;
+    },
+    flush(): string {
+      const vis = visibleOf(raw, true);
+      const delta = vis.length > emitted ? vis.slice(emitted) : "";
+      emitted = vis.length;
+      return delta;
+    },
+  };
 }
 
 export { AicooError };
